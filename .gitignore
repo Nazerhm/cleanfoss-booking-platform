@@ -137,3 +137,7 @@ dist
 # Vite logs files
 vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
+
+# Memory Bank - Work in Progress Features
+.memorybank/features/*/scratch.md
+.memorybank/features/*/tasks/*-wip.md

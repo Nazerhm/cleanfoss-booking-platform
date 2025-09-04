@@ -1,0 +1,675 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model License {
+  id        String        @id @default(cuid())
+  key       String        @unique
+  type      LicenseType
+  status    LicenseStatus
+  expiresAt DateTime?
+  maxUsers  Int?          @default(10)
+  maxLocations Int?       @default(5)
+  maxAgents Int?          @default(20)
+  features  Json?         // Store enabled features as JSON
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+  
+  company   Company?
+  
+  @@map("licenses")
+}
+
+model Company {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  email       String  @unique
+  logo        String?
+  phone       String?
+  address     String?
+  vatNumber   String?
+  vatRate     Float   @default(25.0) // Danish VAT 25%
+  isActive    Boolean @default(true)
+  
+  // Whitelabel branding
+  brandColor  String? @default("#007bff")
+  brandLogo   String?
+  brandName   String?
+  
+  // Company settings
+  currency    String  @default("DKK")
+  timezone    String  @default("Europe/Copenhagen")
+  
+  // Worker revenue split settings
+  defaultWorkerCommission Float @default(60.0) // 60% to worker, 40% to company
+  
+  licenseId   String  @unique
+  license     License @relation(fields: [licenseId], references: [id])
+  
+  users       User[]
+  categories  Category[]
+  services    Service[]
+  serviceExtras ServiceExtra[]
+  bundles     Bundle[]
+  carBrands   CarBrand[]
+  carModels   CarModel[]
+  customerVehicles CustomerVehicle[]
+  servicePricingRules ServicePricingRule[]
+  locations   Location[]
+  agents      Agent[]
+  bookings    Booking[]
+  invoices    Invoice[]
+  payments    Payment[]
+  refunds     Refund[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("companies")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  password      String?
+  emailVerified DateTime?
+  image         String?
+  phone         String?
+  role          UserRole  @default(CUSTOMER)
+  status        UserStatus @default(ACTIVE)
+  
+  // Multi-tenant relationship
+  companyId     String?
+  company       Company? @relation(fields: [companyId], references: [id])
+  
+  // User preferences
+  timezone      String?
+  language      String?   @default("en")
+  
+  accounts      Account[]
+  sessions      Session[]
+  vehicles      CustomerVehicle[]
+  agent         Agent?
+  bookings      Booking[]
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+// Service Management Models
+model Category {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  image       String?
+  slug        String
+  status      String    @default("ACTIVE") // ACTIVE, INACTIVE
+  
+  // Multi-tenant relationship
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  
+  // Relations
+  services    Service[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@unique([companyId, slug])
+  @@map("categories")
+}
+
+model Service {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  deposit     Float?
+  duration    Int       // in minutes
+  image       String?
+  backgroundColor String?
+  status      String    @default("ACTIVE") // ACTIVE, INACTIVE
+  
+  // Group booking settings
+  minCapacity Int       @default(1)
+  maxCapacity Int       @default(1)
+  
+  // Multi-tenant relationship
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  
+  // Category relationship
+  categoryId  String?
+  category    Category? @relation(fields: [categoryId], references: [id])
+  
+  // Relations
+  extras      ServiceExtra[]
+  bundles     BundleService[]
+  pricingRules ServicePricingRule[]
+  bookingServices BookingService[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@map("services")
+}
+
+model ServiceExtra {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  duration    Int       // in minutes
+  maxQuantity Int       @default(1)
+  image       String?
+  status      String    @default("ACTIVE") // ACTIVE, INACTIVE
+  
+  // Multi-tenant relationship
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  
+  // Service relationship
+  serviceId   String
+  service     Service   @relation(fields: [serviceId], references: [id])
+  
+  // Relations
+  bookingExtras BookingExtra[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@map("service_extras")
+}
+
+model Bundle {
+  id          String    @id @default(cuid())
+  name        String
+  description String?
+  price       Float
+  deposit     Float?
+  status      String    @default("ACTIVE") // ACTIVE, INACTIVE
+  
+  // Multi-tenant relationship
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  
+  // Relations
+  services    BundleService[]
+  bookingServices BookingService[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@map("bundles")
+}
+
+model BundleService {
+  id         String  @id @default(cuid())
+  quantity   Int     @default(1)
+  
+  // Relations
+  bundleId   String
+  bundle     Bundle  @relation(fields: [bundleId], references: [id])
+  serviceId  String
+  service    Service @relation(fields: [serviceId], references: [id])
+  
+  @@unique([bundleId, serviceId])
+  @@map("bundle_services")
+}
+
+// Car Management Models
+model CarBrand {
+  id          String    @id @default(cuid())
+  name        String
+  slug        String
+  logo        String?
+  status      String    @default("ACTIVE") // ACTIVE, INACTIVE
+  sortOrder   Int       @default(0)
+  
+  // Multi-tenant relationship
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  
+  // Relations
+  models      CarModel[]
+  customerVehicles CustomerVehicle[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@unique([companyId, slug])
+  @@map("car_brands")
+}
+
+model CarModel {
+  id          String      @id @default(cuid())
+  name        String
+  slug        String
+  vehicleType VehicleType
+  vehicleSize VehicleSize
+  status      String      @default("ACTIVE") // ACTIVE, INACTIVE
+  sortOrder   Int         @default(0)
+  
+  // Multi-tenant relationship
+  companyId   String
+  company     Company     @relation(fields: [companyId], references: [id])
+  
+  // Brand relationship
+  brandId     String
+  brand       CarBrand    @relation(fields: [brandId], references: [id])
+  
+  // Relations
+  customerVehicles CustomerVehicle[]
+  pricingRules ServicePricingRule[]
+  
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+  
+  @@unique([companyId, brandId, slug])
+  @@map("car_models")
+}
+
+model CustomerVehicle {
+  id           String    @id @default(cuid())
+  year         Int?
+  color        String?
+  licensePlate String?
+  nickname     String?
+  isDefault    Boolean   @default(false)
+  status       String    @default("ACTIVE") // ACTIVE, INACTIVE
+  
+  // Multi-tenant relationship
+  companyId    String
+  company      Company   @relation(fields: [companyId], references: [id])
+  
+  // Customer relationship
+  customerId   String
+  customer     User      @relation(fields: [customerId], references: [id])
+  
+  // Car details
+  brandId      String
+  brand        CarBrand  @relation(fields: [brandId], references: [id])
+  modelId      String
+  model        CarModel  @relation(fields: [modelId], references: [id])
+  
+  // Relations
+  bookings     Booking[]
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  @@map("customer_vehicles")
+}
+
+model ServicePricingRule {
+  id              String      @id @default(cuid())
+  vehicleType     VehicleType?
+  vehicleSize     VehicleSize?
+  priceModifier   Float       @default(0) // Percentage modifier (e.g., 25 for +25%)
+  durationModifier Float      @default(0) // Percentage modifier for duration
+  isActive        Boolean     @default(true)
+  description     String?     // Optional description for the rule
+  
+  // Multi-tenant relationship
+  companyId       String
+  company         Company     @relation(fields: [companyId], references: [id])
+  
+  // Service relationship
+  serviceId       String
+  service         Service     @relation(fields: [serviceId], references: [id])
+  
+  // Optional car model specific rule
+  modelId         String?
+  model           CarModel?   @relation(fields: [modelId], references: [id])
+  
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  
+  @@map("service_pricing_rules")
+}
+
+// Booking Engine Models
+model Location {
+  id          String    @id @default(cuid())
+  name        String
+  address     String?
+  city        String?
+  postalCode  String?
+  country     String    @default("Denmark")
+  phone       String?
+  email       String?
+  timezone    String    @default("Europe/Copenhagen")
+  status      String    @default("ACTIVE") // ACTIVE, INACTIVE
+  
+  // Multi-tenant relationship
+  companyId   String
+  company     Company   @relation(fields: [companyId], references: [id])
+  
+  // Relations
+  agents      Agent[]
+  bookings    Booking[]
+  
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  
+  @@map("locations")
+}
+
+model Agent {
+  id             String    @id @default(cuid())
+  specialties    String[]  // Array of service specialties
+  skillLevel     Int       @default(1) // 1-5 skill rating
+  hourlyRate     Float?    // Optional hourly rate
+  commissionRate Float     @default(60.0) // Percentage commission (default 60%)
+  status         String    @default("ACTIVE") // ACTIVE, INACTIVE, ON_LEAVE
+  
+  // Multi-tenant relationship
+  companyId      String
+  company        Company   @relation(fields: [companyId], references: [id])
+  
+  // User relationship (agent is a user with AGENT role)
+  userId         String    @unique
+  user           User      @relation(fields: [userId], references: [id])
+  
+  // Location relationship
+  locationId     String
+  location       Location  @relation(fields: [locationId], references: [id])
+  
+  // Relations
+  bookings       Booking[]
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  
+  @@map("agents")
+}
+
+model Booking {
+  id           String        @id @default(cuid())
+  scheduledAt  DateTime      // When the service is scheduled
+  duration     Int           // Total duration in minutes
+  status       BookingStatus @default(PENDING)
+  totalPrice   Float         // Final price after all calculations
+  notes        String?       // Special instructions or notes
+  
+  // Multi-tenant relationship
+  companyId    String
+  company      Company       @relation(fields: [companyId], references: [id])
+  
+  // Customer relationship
+  customerId   String
+  customer     User          @relation(fields: [customerId], references: [id])
+  
+  // Agent and location
+  agentId      String?
+  agent        Agent?        @relation(fields: [agentId], references: [id])
+  locationId   String
+  location     Location      @relation(fields: [locationId], references: [id])
+  
+  // Vehicle for the booking
+  vehicleId    String
+  vehicle      CustomerVehicle @relation(fields: [vehicleId], references: [id])
+  
+  // Relations
+  services     BookingService[]
+  invoices     Invoice[]
+  payments     Payment[]
+  
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  
+  @@map("bookings")
+}
+
+model BookingService {
+  id         String  @id @default(cuid())
+  quantity   Int     @default(1)
+  unitPrice  Float   // Price per unit at booking time
+  totalPrice Float   // quantity * unitPrice
+  duration   Int     // Duration for this service in minutes
+  
+  // Booking relationship
+  bookingId  String
+  booking    Booking @relation(fields: [bookingId], references: [id])
+  
+  // Service relationship
+  serviceId  String?
+  service    Service? @relation(fields: [serviceId], references: [id])
+  
+  // Bundle relationship (if this is part of a bundle)
+  bundleId   String?
+  bundle     Bundle? @relation(fields: [bundleId], references: [id])
+  
+  // Relations
+  extras     BookingExtra[]
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  
+  @@map("booking_services")
+}
+
+model BookingExtra {
+  id               String         @id @default(cuid())
+  quantity         Int            @default(1)
+  unitPrice        Float          // Price per unit at booking time
+  totalPrice       Float          // quantity * unitPrice
+  
+  // Booking service relationship
+  bookingServiceId String
+  bookingService   BookingService @relation(fields: [bookingServiceId], references: [id])
+  
+  // Service extra relationship
+  extraId          String
+  extra            ServiceExtra   @relation(fields: [extraId], references: [id])
+  
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  
+  @@map("booking_extras")
+}
+
+model Invoice {
+  id            String        @id @default(cuid())
+  invoiceNumber String        // Company-specific invoice number
+  issueDate     DateTime      @default(now())
+  dueDate       DateTime      // Payment due date
+  subtotal      Float         // Amount before VAT
+  vatAmount     Float         // VAT amount (typically 25% in Denmark)
+  vatRate       Float         @default(25.0) // VAT rate percentage
+  totalAmount   Float         // Final amount including VAT
+  currency      String        @default("DKK")
+  status        InvoiceStatus @default(DRAFT)
+  notes         String?       // Additional invoice notes
+  
+  // Multi-tenant relationship
+  companyId     String
+  company       Company       @relation(fields: [companyId], references: [id])
+  
+  // Booking relationship
+  bookingId     String
+  booking       Booking       @relation(fields: [bookingId], references: [id])
+  
+  // Relations
+  payments      Payment[]
+  
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  @@unique([companyId, invoiceNumber]) // Ensure unique invoice numbers per company
+  @@map("invoices")
+}
+
+model Payment {
+  id            String        @id @default(cuid())
+  amount        Float         // Payment amount
+  currency      String        @default("DKK")
+  paymentMethod PaymentMethod
+  transactionId String?       // External payment system transaction ID
+  status        PaymentStatus @default(PENDING)
+  processedAt   DateTime?     // When payment was processed
+  notes         String?       // Payment notes or reference
+  
+  // Multi-tenant relationship
+  companyId     String
+  company       Company       @relation(fields: [companyId], references: [id])
+  
+  // Invoice relationship
+  invoiceId     String?
+  invoice       Invoice?      @relation(fields: [invoiceId], references: [id])
+  
+  // Booking relationship (for direct payments without invoice)
+  bookingId     String?
+  booking       Booking?      @relation(fields: [bookingId], references: [id])
+  
+  // Relations
+  refunds       Refund[]
+  
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  @@map("payments")
+}
+
+model Refund {
+  id          String        @id @default(cuid())
+  amount      Float         // Refund amount
+  reason      String?       // Reason for refund
+  status      PaymentStatus @default(PENDING)
+  processedAt DateTime?     // When refund was processed
+  notes       String?       // Refund notes
+  
+  // Multi-tenant relationship
+  companyId   String
+  company     Company       @relation(fields: [companyId], references: [id])
+  
+  // Payment relationship
+  paymentId   String
+  payment     Payment       @relation(fields: [paymentId], references: [id])
+  
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  
+  @@map("refunds")
+}
+
+enum LicenseType {
+  MONTHLY
+  YEARLY
+  LIFETIME
+}
+
+enum LicenseStatus {
+  ACTIVE
+  EXPIRED
+  SUSPENDED
+  CANCELLED
+}
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  AGENT
+  CUSTOMER
+  FINANCE
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum VehicleType {
+  SEDAN
+  HATCHBACK
+  SUV
+  WAGON
+  COUPE
+  CONVERTIBLE
+  PICKUP
+  VAN
+  LUXURY
+}
+
+enum VehicleSize {
+  SMALL
+  MEDIUM
+  LARGE
+  EXTRA_LARGE
+}
+
+enum BookingStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum PaymentMethod {
+  MOBILE_PAY
+  CARD
+  BANK_TRANSFER
+  CASH
+  INVOICE
+}
+
+enum PaymentStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  REFUNDED
+  PARTIALLY_REFUNDED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  SENT
+  PAID
+  OVERDUE
+  CANCELLED
+}
