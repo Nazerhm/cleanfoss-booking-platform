@@ -2,7 +2,6 @@ import { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import { verifyPassword } from "./password-utils-enhanced"
-import { validatePasswordStrength } from "./password-utils-enhanced"
 import { prisma } from "./prisma"
 import { SESSION_CONFIG, SecurityEventType } from "./auth/security-config"
 import { logSecurityEvent } from "./auth/security-middleware"
@@ -176,56 +175,57 @@ export const authOptions: NextAuthOptions = {
       }
     })
   ],
-          if (!isPasswordValid) {
-            return null
-          }
-          
-          // Return user object compatible with NextAuth User type
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            role: user.role,
-            companyId: user.companyId ?? undefined // Convert null to undefined for NextAuth compatibility
-          }
-          
-        } catch (error) {
-          console.error('Authentication error:', error)
-          return null
-        }
-      }
-    })
-  ],
   
   callbacks: {
     async session({ session, token }) {
-      // Add user ID and role to the session
-      if (session.user) {
-        (session.user as any).id = token.sub as string;
-        (session.user as any).role = token.role as string;
-        (session.user as any).companyId = token.companyId as string;
+      // Attach user information to session
+      if (token) {
+        session.user.id = token.id as string
+        session.user.role = token.role as string
+        session.user.companyId = token.companyId as string
       }
       return session
     },
     
     async jwt({ token, user }) {
-      // Add user role and company to JWT token
+      // Persist user information in JWT token
       if (user) {
-        token.role = (user as any).role
-        token.companyId = (user as any).companyId
+        token.id = user.id
+        token.role = user.role
+        token.companyId = user.companyId
       }
       return token
     }
   },
   
   pages: {
-    signIn: '/auth/login'
+    signIn: '/auth/login',
+    signUp: '/auth/register',
+    error: '/auth/error',
   },
   
-  session: {
-    strategy: 'jwt', // Use JWT instead of database sessions for better performance
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-  },
+  // Security configuration
+  secret: process.env.NEXTAUTH_SECRET,
   
+  // Additional security options
+  useSecureCookies: process.env.NODE_ENV === 'production',
+  
+  // Debug logging in development
   debug: process.env.NODE_ENV === 'development',
+  
+  // Events for logging and monitoring
+  events: {
+    async signIn(message) {
+      console.log('User signed in:', message.user.email);
+    },
+    async signOut(message) {
+      console.log('User signed out:', message.token?.email);
+    },
+    async session(message) {
+      // Log session activity for monitoring
+      if (process.env.NODE_ENV === 'development') {
+        console.log('Session accessed:', message.session.user?.email);
+      }
+    }
+  }
 }

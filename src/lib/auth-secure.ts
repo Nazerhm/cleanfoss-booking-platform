@@ -2,7 +2,6 @@ import { NextAuthOptions } from "next-auth"
 import CredentialsProvider from "next-auth/providers/credentials"
 import { PrismaAdapter } from "@next-auth/prisma-adapter"
 import { verifyPassword } from "./password-utils-enhanced"
-import { validatePasswordStrength } from "./password-utils-enhanced"
 import { prisma } from "./prisma"
 import { SESSION_CONFIG, SecurityEventType } from "./auth/security-config"
 import { logSecurityEvent } from "./auth/security-middleware"
@@ -16,38 +15,6 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
     maxAge: SESSION_CONFIG.maxAge,
     updateAge: SESSION_CONFIG.updateAge,
-  },
-  
-  // Secure cookies configuration
-  cookies: {
-    sessionToken: {
-      name: `__Secure-next-auth.session-token`,
-      options: {
-        httpOnly: SESSION_CONFIG.httpOnly,
-        sameSite: SESSION_CONFIG.sameSite,
-        path: '/',
-        secure: SESSION_CONFIG.secure,
-        domain: SESSION_CONFIG.domain,
-      }
-    },
-    callbackUrl: {
-      name: `__Secure-next-auth.callback-url`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: SESSION_CONFIG.secure,
-      }
-    },
-    csrfToken: {
-      name: `__Host-next-auth.csrf-token`,
-      options: {
-        httpOnly: true,
-        sameSite: 'lax',
-        path: '/',
-        secure: SESSION_CONFIG.secure,
-      }
-    }
   },
   
   providers: [
@@ -64,7 +31,8 @@ export const authOptions: NextAuthOptions = {
         
         try {
           // Get IP for logging
-          const ip = req?.headers?.['x-forwarded-for'] || req?.headers?.['x-real-ip'] || 'unknown';
+          const forwardedFor = req?.headers?.['x-forwarded-for'];
+          const ip = Array.isArray(forwardedFor) ? forwardedFor[0] : forwardedFor || 'unknown';
           
           // Find user with enhanced Prisma client
           const user = await prisma.user.findUnique({
@@ -78,21 +46,14 @@ export const authOptions: NextAuthOptions = {
               password: true,
               role: true,
               companyId: true,
-              status: true,
-              company: {
-                select: {
-                  id: true,
-                  name: true,
-                  status: true
-                }
-              }
+              status: true
             }
           })
           
           // Check if user exists
           if (!user) {
             await logSecurityEvent(SecurityEventType.LOGIN_FAILED, {
-              ip: Array.isArray(ip) ? ip[0] : ip,
+              ip,
               timestamp: new Date(),
               details: `Login attempt with non-existent email: ${credentials.email}`
             });
@@ -102,7 +63,7 @@ export const authOptions: NextAuthOptions = {
           // Check if user is active
           if (user.status !== 'ACTIVE') {
             await logSecurityEvent(SecurityEventType.LOGIN_FAILED, {
-              ip: Array.isArray(ip) ? ip[0] : ip,
+              ip,
               userId: user.id,
               timestamp: new Date(),
               details: `Login attempt with inactive account: ${user.status}`
@@ -110,21 +71,10 @@ export const authOptions: NextAuthOptions = {
             return null
           }
           
-          // Check if company is active (multi-tenant validation)
-          if (user.company && user.company.status !== 'ACTIVE') {
-            await logSecurityEvent(SecurityEventType.LOGIN_FAILED, {
-              ip: Array.isArray(ip) ? ip[0] : ip,
-              userId: user.id,
-              timestamp: new Date(),
-              details: `Login attempt with inactive company: ${user.company.status}`
-            });
-            return null
-          }
-          
           // Verify password
           if (!user.password) {
             await logSecurityEvent(SecurityEventType.LOGIN_FAILED, {
-              ip: Array.isArray(ip) ? ip[0] : ip,
+              ip,
               userId: user.id,
               timestamp: new Date(),
               details: 'Login attempt with account that has no password set'
@@ -136,7 +86,7 @@ export const authOptions: NextAuthOptions = {
           
           if (!isPasswordValid) {
             await logSecurityEvent(SecurityEventType.LOGIN_FAILED, {
-              ip: Array.isArray(ip) ? ip[0] : ip,
+              ip,
               userId: user.id,
               timestamp: new Date(),
               details: 'Invalid password provided'
@@ -146,19 +96,19 @@ export const authOptions: NextAuthOptions = {
           
           // Log successful login
           await logSecurityEvent(SecurityEventType.LOGIN_SUCCESS, {
-            ip: Array.isArray(ip) ? ip[0] : ip,
+            ip,
             userId: user.id,
             timestamp: new Date(),
             details: 'Successful password authentication'
           });
           
-          // Return user object for session
+          // Return user object for session (NextAuth compatible)
           return {
             id: user.id,
             email: user.email,
             name: user.name,
             role: user.role,
-            companyId: user.companyId,
+            companyId: user.companyId || undefined, // Convert null to undefined
             status: user.status
           }
           
@@ -176,56 +126,52 @@ export const authOptions: NextAuthOptions = {
       }
     })
   ],
-          if (!isPasswordValid) {
-            return null
-          }
-          
-          // Return user object compatible with NextAuth User type
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            role: user.role,
-            companyId: user.companyId ?? undefined // Convert null to undefined for NextAuth compatibility
-          }
-          
-        } catch (error) {
-          console.error('Authentication error:', error)
-          return null
-        }
-      }
-    })
-  ],
   
   callbacks: {
     async session({ session, token }) {
-      // Add user ID and role to the session
-      if (session.user) {
-        (session.user as any).id = token.sub as string;
-        (session.user as any).role = token.role as string;
-        (session.user as any).companyId = token.companyId as string;
+      // Attach user information to session
+      if (token && session.user) {
+        session.user.id = token.id as string
+        session.user.role = token.role as string
+        session.user.companyId = token.companyId as string
+        session.user.status = token.status as string
       }
       return session
     },
     
     async jwt({ token, user }) {
-      // Add user role and company to JWT token
+      // Persist user information in JWT token
       if (user) {
+        token.id = user.id
         token.role = (user as any).role
         token.companyId = (user as any).companyId
+        token.status = (user as any).status
       }
       return token
     }
   },
   
   pages: {
-    signIn: '/auth/login'
+    signIn: '/auth/login',
+    error: '/auth/error',
   },
   
-  session: {
-    strategy: 'jwt', // Use JWT instead of database sessions for better performance
-    maxAge: 30 * 24 * 60 * 60, // 30 days
-  },
+  // Security configuration
+  secret: process.env.NEXTAUTH_SECRET,
   
+  // Additional security options
+  useSecureCookies: process.env.NODE_ENV === 'production',
+  
+  // Debug logging in development
   debug: process.env.NODE_ENV === 'development',
+  
+  // Events for logging and monitoring
+  events: {
+    async signIn(message) {
+      console.log('✅ User signed in:', message.user.email);
+    },
+    async signOut(message) {
+      console.log('👋 User signed out');
+    }
+  }
 }
