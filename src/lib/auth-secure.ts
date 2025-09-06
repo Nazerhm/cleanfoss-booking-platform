@@ -6,6 +6,29 @@ import { prisma } from "./prisma"
 import { SESSION_CONFIG, SecurityEventType } from "./auth/security-config"
 import { logSecurityEvent } from "./auth/security-middleware"
 
+// Extend NextAuth types to include custom properties
+declare module "next-auth" {
+  interface User {
+    id: string
+    role: string
+    companyId?: string
+    status: string
+  }
+  
+  interface Session {
+    user: {
+      id: string
+      role: string
+      companyId?: string
+      status: string
+    } & {
+      name?: string | null
+      email?: string | null
+      image?: string | null
+    }
+  }
+}
+
 export const authOptions: NextAuthOptions = {
   // Use Prisma adapter with our enhanced database client
   adapter: PrismaAdapter(prisma),

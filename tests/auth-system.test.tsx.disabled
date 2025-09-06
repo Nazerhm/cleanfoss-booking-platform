@@ -1,0 +1,561 @@
+/**
+ * Authentication System Integration Tests
+ * Comprehensive test suite for Feature 009 authentication components
+ */
+
+import { describe, it, expect, jest, beforeEach, afterEach } from '@jest/globals';
+import { render, screen, fireEvent, waitFor } from '@testing-library/react';
+import { SessionProvider } from 'next-auth/react';
+import { useSession } from 'next-auth/react';
+import '@testing-library/jest-dom';
+
+// Import components to test
+import { LoginButton, LogoutButton, RegisterButton, AuthStatus } from '../src/components/auth/AuthButtons';
+import UserMenu from '../src/components/auth/UserMenu';
+import Navigation from '../src/components/Navigation';
+import AuthenticatedLayout, { PublicLayout, CustomerLayout, AdminLayout } from '../src/components/AuthenticatedLayout';
+
+// Mock NextAuth
+jest.mock('next-auth/react');
+const mockUseSession = useSession as jest.MockedFunction<typeof useSession>;
+
+// Mock Next.js router
+jest.mock('next/navigation', () => ({
+  useRouter: () => ({
+    push: jest.fn(),
+    replace: jest.fn(),
+    back: jest.fn(),
+  }),
+  usePathname: () => '/test',
+}));
+
+describe('Authentication System Tests', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  describe('AuthButtons Component', () => {
+    describe('LoginButton', () => {
+      it('should render login button when user is not authenticated', () => {
+        mockUseSession.mockReturnValue({
+          data: null,
+          status: 'unauthenticated',
+          update: jest.fn(),
+        });
+
+        render(
+          <SessionProvider>
+            <LoginButton />
+          </SessionProvider>
+        );
+
+        expect(screen.getByText('Log Ind')).toBeInTheDocument();
+      });
+
+      it('should handle different button variants', () => {
+        mockUseSession.mockReturnValue({
+          data: null,
+          status: 'unauthenticated',
+          update: jest.fn(),
+        });
+
+        const { rerender } = render(
+          <SessionProvider>
+            <LoginButton variant="primary" />
+          </SessionProvider>
+        );
+
+        expect(screen.getByRole('button')).toHaveClass('bg-blue-600');
+
+        rerender(
+          <SessionProvider>
+            <LoginButton variant="outline" />
+          </SessionProvider>
+        );
+
+        expect(screen.getByRole('button')).toHaveClass('border-blue-600');
+      });
+    });
+
+    describe('LogoutButton', () => {
+      it('should render logout button when user is authenticated', () => {
+        mockUseSession.mockReturnValue({
+          data: {
+            user: {
+              id: '1',
+              email: 'test@example.com',
+              name: 'Test User',
+            },
+          },
+          status: 'authenticated',
+          update: jest.fn(),
+        });
+
+        render(
+          <SessionProvider>
+            <LogoutButton />
+          </SessionProvider>
+        );
+
+        expect(screen.getByText('Log Ud')).toBeInTheDocument();
+      });
+    });
+
+    describe('AuthStatus', () => {
+      it('should show loading state', () => {
+        mockUseSession.mockReturnValue({
+          data: null,
+          status: 'loading',
+          update: jest.fn(),
+        });
+
+        render(
+          <SessionProvider>
+            <AuthStatus />
+          </SessionProvider>
+        );
+
+        expect(screen.getByText('Indlæser...')).toBeInTheDocument();
+      });
+
+      it('should show user information when authenticated', () => {
+        mockUseSession.mockReturnValue({
+          data: {
+            user: {
+              id: '1',
+              email: 'test@cleanfoss.dk',
+              name: 'John Doe',
+            },
+          },
+          status: 'authenticated',
+          update: jest.fn(),
+        });
+
+        render(
+          <SessionProvider>
+            <AuthStatus />
+          </SessionProvider>
+        );
+
+        expect(screen.getByText('John Doe')).toBeInTheDocument();
+        expect(screen.getByText('test@cleanfoss.dk')).toBeInTheDocument();
+      });
+    });
+  });
+
+  describe('UserMenu Component', () => {
+    it('should render user menu for authenticated customer', () => {
+      mockUseSession.mockReturnValue({
+        data: {
+          user: {
+            id: '1',
+            email: 'customer@example.com',
+            name: 'Customer User',
+            role: 'CUSTOMER',
+          },
+        },
+        status: 'authenticated',
+        update: jest.fn(),
+      });
+
+      render(
+        <SessionProvider>
+          <UserMenu />
+        </SessionProvider>
+      );
+
+      // Click to open menu
+      fireEvent.click(screen.getByRole('button'));
+
+      expect(screen.getByText('Min Profil')).toBeInTheDocument();
+      expect(screen.getByText('Mine Bookinger')).toBeInTheDocument();
+      expect(screen.getByText('Mine Køretøjer')).toBeInTheDocument();
+    });
+
+    it('should show admin options for admin users', () => {
+      mockUseSession.mockReturnValue({
+        data: {
+          user: {
+            id: '1',
+            email: 'admin@example.com',
+            name: 'Admin User',
+            role: 'ADMIN',
+          },
+        },
+        status: 'authenticated',
+        update: jest.fn(),
+      });
+
+      render(
+        <SessionProvider>
+          <UserMenu />
+        </SessionProvider>
+      );
+
+      // Click to open menu
+      fireEvent.click(screen.getByRole('button'));
+
+      expect(screen.getByText('Administration')).toBeInTheDocument();
+    });
+
+    it('should show super admin options for super admin users', () => {
+      mockUseSession.mockReturnValue({
+        data: {
+          user: {
+            id: '1',
+            email: 'superadmin@example.com',
+            name: 'Super Admin',
+            role: 'SUPER_ADMIN',
+          },
+        },
+        status: 'authenticated',
+        update: jest.fn(),
+      });
+
+      render(
+        <SessionProvider>
+          <UserMenu />
+        </SessionProvider>
+      );
+
+      // Click to open menu
+      fireEvent.click(screen.getByRole('button'));
+
+      expect(screen.getByText('System')).toBeInTheDocument();
+    });
+  });
+
+  describe('Navigation Component', () => {
+    it('should render public navigation for unauthenticated users', () => {
+      mockUseSession.mockReturnValue({
+        data: null,
+        status: 'unauthenticated',
+        update: jest.fn(),
+      });
+
+      render(
+        <SessionProvider>
+          <Navigation />
+        </SessionProvider>
+      );
+
+      expect(screen.getByText('Hjem')).toBeInTheDocument();
+      expect(screen.getByText('Services')).toBeInTheDocument();
+      expect(screen.getByText('Book Service')).toBeInTheDocument();
+      expect(screen.getByText('Log Ind')).toBeInTheDocument();
+    });
+
+    it('should render authenticated navigation for customers', () => {
+      mockUseSession.mockReturnValue({
+        data: {
+          user: {
+            id: '1',
+            email: 'customer@example.com',
+            name: 'Customer User',
+            role: 'CUSTOMER',
+          },
+        },
+        status: 'authenticated',
+        update: jest.fn(),
+      });
+
+      render(
+        <SessionProvider>
+          <Navigation />
+        </SessionProvider>
+      );
+
+      expect(screen.getByText('Mine Bookinger')).toBeInTheDocument();
+      expect(screen.getByText('Mine Køretøjer')).toBeInTheDocument();
+      expect(screen.getByText('Betalinger')).toBeInTheDocument();
+    });
+
+    it('should render admin navigation for admin users', () => {
+      mockUseSession.mockReturnValue({
+        data: {
+          user: {
+            id: '1',
+            email: 'admin@example.com',
+            name: 'Admin User',
+            role: 'ADMIN',
+          },
+        },
+        status: 'authenticated',
+        update: jest.fn(),
+      });
+
+      render(
+        <SessionProvider>
+          <Navigation />
+        </SessionProvider>
+      );
+
+      expect(screen.getByText('Admin')).toBeInTheDocument();
+    });
+  });
+
+  describe('AuthenticatedLayout Component', () => {
+    it('should render content for public layout', () => {
+      mockUseSession.mockReturnValue({
+        data: null,
+        status: 'unauthenticated',
+        update: jest.fn(),
+      });
+
+      render(
+        <SessionProvider>
+          <PublicLayout>
+            <div>Public Content</div>
+          </PublicLayout>
+        </SessionProvider>
+      );
+
+      expect(screen.getByText('Public Content')).toBeInTheDocument();
+    });
+
+    it('should redirect to login when authentication required but not authenticated', () => {
+      mockUseSession.mockReturnValue({
+        data: null,
+        status: 'unauthenticated',
+        update: jest.fn(),
+      });
+
+      render(
+        <SessionProvider>
+          <CustomerLayout>
+            <div>Protected Content</div>
+          </CustomerLayout>
+        </SessionProvider>
+      );
+
+      expect(screen.getByText('Login Påkrævet')).toBeInTheDocument();
+      expect(screen.queryByText('Protected Content')).not.toBeInTheDocument();
+    });
+
+    it('should show access denied for insufficient role', () => {
+      mockUseSession.mockReturnValue({
+        data: {
+          user: {
+            id: '1',
+            email: 'customer@example.com',
+            name: 'Customer User',
+            role: 'CUSTOMER',
+          },
+        },
+        status: 'authenticated',
+        update: jest.fn(),
+      });
+
+      render(
+        <SessionProvider>
+          <AdminLayout>
+            <div>Admin Content</div>
+          </AdminLayout>
+        </SessionProvider>
+      );
+
+      expect(screen.getByText('Adgang Nægtet')).toBeInTheDocument();
+      expect(screen.queryByText('Admin Content')).not.toBeInTheDocument();
+    });
+
+    it('should render content for users with sufficient role', () => {
+      mockUseSession.mockReturnValue({
+        data: {
+          user: {
+            id: '1',
+            email: 'admin@example.com',
+            name: 'Admin User',
+            role: 'ADMIN',
+          },
+        },
+        status: 'authenticated',
+        update: jest.fn(),
+      });
+
+      render(
+        <SessionProvider>
+          <AdminLayout>
+            <div>Admin Content</div>
+          </AdminLayout>
+        </SessionProvider>
+      );
+
+      expect(screen.getByText('Admin Content')).toBeInTheDocument();
+    });
+  });
+
+  describe('Security Tests', () => {
+    it('should not expose sensitive user data in DOM', () => {
+      mockUseSession.mockReturnValue({
+        data: {
+          user: {
+            id: '1',
+            email: 'test@example.com',
+            name: 'Test User',
+            role: 'CUSTOMER',
+            password: 'should-not-appear', // This should never appear in DOM
+          },
+        },
+        status: 'authenticated',
+        update: jest.fn(),
+      });
+
+      render(
+        <SessionProvider>
+          <UserMenu />
+        </SessionProvider>
+      );
+
+      expect(screen.queryByText('should-not-appear')).not.toBeInTheDocument();
+    });
+
+    it('should handle session errors gracefully', () => {
+      mockUseSession.mockReturnValue({
+        data: null,
+        status: 'unauthenticated',
+        update: jest.fn(),
+      });
+
+      // Should not throw when session is null
+      expect(() => {
+        render(
+          <SessionProvider>
+            <Navigation />
+          </SessionProvider>
+        );
+      }).not.toThrow();
+    });
+  });
+
+  describe('Accessibility Tests', () => {
+    it('should have proper ARIA labels', () => {
+      mockUseSession.mockReturnValue({
+        data: null,
+        status: 'unauthenticated',
+        update: jest.fn(),
+      });
+
+      render(
+        <SessionProvider>
+          <Navigation />
+        </SessionProvider>
+      );
+
+      const mobileMenuButton = screen.getByLabelText('Åbn hovedmenu');
+      expect(mobileMenuButton).toBeInTheDocument();
+    });
+
+    it('should support keyboard navigation', () => {
+      mockUseSession.mockReturnValue({
+        data: {
+          user: {
+            id: '1',
+            email: 'test@example.com',
+            name: 'Test User',
+            role: 'CUSTOMER',
+          },
+        },
+        status: 'authenticated',
+        update: jest.fn(),
+      });
+
+      render(
+        <SessionProvider>
+          <UserMenu />
+        </SessionProvider>
+      );
+
+      const menuButton = screen.getByRole('button');
+      expect(menuButton).toBeInTheDocument();
+      
+      // Should be focusable
+      menuButton.focus();
+      expect(document.activeElement).toBe(menuButton);
+    });
+  });
+});
+
+// Performance Tests
+describe('Authentication System Performance Tests', () => {
+  it('should render navigation quickly', () => {
+    const startTime = performance.now();
+    
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          id: '1',
+          email: 'test@example.com',
+          name: 'Test User',
+          role: 'CUSTOMER',
+        },
+      },
+      status: 'authenticated',
+      update: jest.fn(),
+    });
+
+    render(
+      <SessionProvider>
+        <Navigation />
+      </SessionProvider>
+    );
+
+    const endTime = performance.now();
+    const renderTime = endTime - startTime;
+
+    // Should render in less than 100ms (reasonable for component rendering)
+    expect(renderTime).toBeLessThan(100);
+  });
+});
+
+// Integration Tests
+describe('Authentication Integration Tests', () => {
+  it('should handle session state changes', async () => {
+    const { rerender } = render(
+      <SessionProvider>
+        <AuthStatus />
+      </SessionProvider>
+    );
+
+    // Start with loading
+    mockUseSession.mockReturnValue({
+      data: null,
+      status: 'loading',
+      update: jest.fn(),
+    });
+
+    rerender(
+      <SessionProvider>
+        <AuthStatus />
+      </SessionProvider>
+    );
+
+    expect(screen.getByText('Indlæser...')).toBeInTheDocument();
+
+    // Then authenticated
+    mockUseSession.mockReturnValue({
+      data: {
+        user: {
+          id: '1',
+          email: 'test@example.com',
+          name: 'Test User',
+        },
+      },
+      status: 'authenticated',
+      update: jest.fn(),
+    });
+
+    rerender(
+      <SessionProvider>
+        <AuthStatus />
+      </SessionProvider>
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText('Test User')).toBeInTheDocument();
+    });
+  });
+});

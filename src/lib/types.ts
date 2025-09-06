@@ -50,6 +50,9 @@ export interface AddonSelection {
 
 export interface VehicleDetails {
   selectedCar: CarModel | null;
+  brand?: string;
+  model?: string;
+  size?: 'mini' | 'mellem' | 'sedan' | 'stationcar' | 'suv' | 'mpv' | 'varevogn';
 }
 
 export interface CarModel {

@@ -1,6 +1,30 @@
 /**
  * Enhanced User Registration API with Security Validation
- * Implements comprehensive password policies and security measures
+ * Implements comprehensive password polic      const company = await prisma.company.findUnique({
+        where: { id: companyId },
+        select: { 
+          id: true, 
+          isActive: true,
+          license: {
+            select: { maxUsers: true }
+          }
+        }
+      });
+      
+      if (!company || !company.isActive) {
+        return NextResponse.json(
+          { error: 'Ugyldig eller inaktiv virksomhed' },
+          { status: 400 }
+        );
+      }
+      
+      // Check user limit for company
+      if (company.license?.maxUsers) {
+        const currentUserCount = await prisma.user.count({
+          where: { companyId }
+        });
+        
+        if (currentUserCount >= company.license.maxUsers) {asures
  */
 
 import { NextRequest, NextResponse } from 'next/server';
@@ -107,10 +131,16 @@ async function registerHandler(request: NextRequest): Promise<NextResponse> {
     if (companyId) {
       const company = await prisma.company.findUnique({
         where: { id: companyId },
-        select: { id: true, status: true, maxUsers: true }
+        select: { 
+          id: true, 
+          isActive: true,
+          license: {
+            select: { maxUsers: true }
+          }
+        }
       });
       
-      if (!company || company.status !== 'ACTIVE') {
+      if (!company || !company.isActive) {
         return NextResponse.json(
           { error: 'Ugyldig eller inaktiv virksomhed' },
           { status: 400 }
@@ -118,12 +148,12 @@ async function registerHandler(request: NextRequest): Promise<NextResponse> {
       }
       
       // Check user limit for company
-      if (company.maxUsers) {
+      if (company.license?.maxUsers) {
         const currentUserCount = await prisma.user.count({
           where: { companyId, status: 'ACTIVE' }
         });
         
-        if (currentUserCount >= company.maxUsers) {
+        if (currentUserCount >= company.license.maxUsers) {
           return NextResponse.json(
             { error: 'Virksomheden har nået maksimalt antal brugere' },
             { status: 403 }
@@ -145,10 +175,6 @@ async function registerHandler(request: NextRequest): Promise<NextResponse> {
         role: 'CUSTOMER', // Default role
         status: 'ACTIVE',
         emailVerified: null, // Will be verified via email
-        acceptedTermsAt: acceptTerms ? new Date() : null,
-        marketingOptIn: acceptMarketing,
-        // Store password history for reuse prevention
-        passwordHistory: hashedPassword,
         createdAt: new Date(),
         updatedAt: new Date()
       },

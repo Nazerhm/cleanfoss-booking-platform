@@ -39,7 +39,24 @@ const PUBLIC_ROUTES = [
 ];
 
 export async function middleware(request: NextRequest) {
+  // Skip middleware during build time to prevent static generation issues
+  if (process.env.NODE_ENV === 'production' && !process.env.NEXTAUTH_URL) {
+    return NextResponse.next();
+  }
+  
   const { pathname } = request.nextUrl;
+  
+  // Only run middleware for routes that actually need it
+  const needsMiddleware = 
+    PROTECTED_ROUTES.some(route => pathname.startsWith(route)) ||
+    CSRF_PROTECTED_ROUTES.some(route => pathname.startsWith(route)) ||
+    pathname.startsWith('/api/admin/') ||
+    pathname.startsWith('/api/super-admin/');
+
+  // Skip middleware for routes that should remain static
+  if (!needsMiddleware) {
+    return NextResponse.next();
+  }
   
   // Create response
   let response = NextResponse.next();
@@ -178,14 +195,13 @@ export async function middleware(request: NextRequest) {
 // Configure which paths this middleware runs on
 export const config = {
   matcher: [
-    /*
-     * Match all request paths except for the ones starting with:
-     * - api (API routes - handled separately)
-     * - _next/static (static files)
-     * - _next/image (image optimization files)
-     * - favicon.ico (favicon file)
-     * - public folder files
-     */
-    '/((?!_next/static|_next/image|favicon.ico|public).*)',
+    // Only match specific protected routes to avoid static generation interference
+    '/profile/:path*',
+    '/booking/history/:path*',
+    '/api/user/:path*',
+    '/api/admin/:path*', 
+    '/api/super-admin/:path*',
+    '/api/bookings/:path*',
+    '/api/auth/register'
   ],
 }

@@ -77,7 +77,7 @@ export default function VehicleForm({ vehicle, onVehicleChange, className = '' }
         </label>
         <select
           value={vehicle?.size || 'mellem'}
-          onChange={(e) => handleSizeChange(e.target.value as any)}
+          onChange={(e) => handleSizeChange(e.target.value as 'mini' | 'mellem' | 'sedan' | 'stationcar' | 'suv' | 'varevogn')}
           className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-cleanfoss-blue focus:border-cleanfoss-blue"
           required
         >

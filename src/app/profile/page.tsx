@@ -1,11 +1,10 @@
 'use client';
 
-import { useSession } from 'next-auth/react';
-import { useRouter } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useState, useCallback } from 'react';
 import { ProfileForm } from '@/components/profile/ProfileForm';
 import { BookingHistory } from '@/components/profile/BookingHistory';
 import { AccountSettings } from '@/components/profile/AccountSettings';
+import { useSessionData } from '@/hooks/useAsyncData';
 
 interface ProfileData {
   id: string;
@@ -24,43 +23,24 @@ interface ProfileData {
 }
 
 export default function ProfilePage() {
-  const { data: session, status } = useSession();
-  const router = useRouter();
-  const [profileData, setProfileData] = useState<ProfileData | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<'profile' | 'bookings' | 'settings'>('profile');
 
-  useEffect(() => {
-    if (status === 'loading') return;
+  // Use optimized async data hook instead of manual state management
+  const fetchProfileData = useCallback(async (): Promise<ProfileData> => {
+    const response = await fetch('/api/user/profile');
+    if (!response.ok) {
+      throw new Error('Failed to fetch profile data');
+    }
     
-    if (!session) {
-      router.push('/auth/login?callbackUrl=/profile');
-      return;
+    const result = await response.json();
+    if (!result.success) {
+      throw new Error('Failed to load profile data');
     }
+    
+    return result.data.user;
+  }, []);
 
-    fetchProfileData();
-  }, [session, status, router]);
-
-  const fetchProfileData = async () => {
-    try {
-      const response = await fetch('/api/user/profile');
-      if (!response.ok) {
-        throw new Error('Failed to fetch profile data');
-      }
-      
-      const result = await response.json();
-      if (result.success) {
-        setProfileData(result.data.user);
-      } else {
-        setError('Failed to load profile data');
-      }
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { data: profileData, loading, error } = useSessionData(fetchProfileData);
 
   if (loading) {
     return (
@@ -80,7 +60,7 @@ export default function ProfilePage() {
             </svg>
           </div>
           <h2 className="text-xl font-semibold text-gray-900 mb-2">Fejl ved indlæsning</h2>
-          <p className="text-gray-600 mb-4">{error}</p>
+          <p className="text-gray-600 mb-4">{error?.message || 'An error occurred'}</p>
           <button 
             onClick={() => window.location.reload()}
             className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+// Force dynamic route to prevent static generation issues
+export const dynamic = 'force-dynamic'
+
 // Mock services for demo purposes - Danish car cleaning services
 const mockServices = [
   {
@@ -194,10 +197,9 @@ const mockServices = [
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const companyId = searchParams.get('companyId');
-    const search = searchParams.get('search');
-    const categoryId = searchParams.get('categoryId');
+    const companyId = request.nextUrl.searchParams.get('companyId');
+    const search = request.nextUrl.searchParams.get('search');
+    const categoryId = request.nextUrl.searchParams.get('categoryId');
 
     // Filter services based on query parameters
     let filteredServices = mockServices;

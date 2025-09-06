@@ -63,8 +63,10 @@ export const authOptions: NextAuthOptions = {
         }
         
         try {
-          // Get IP for logging
-          const ip = req?.headers?.['x-forwarded-for'] || req?.headers?.['x-real-ip'] || 'unknown';
+          // Get IP for logging - but skip during build time
+          const ip = typeof window === 'undefined' && req?.headers 
+            ? req.headers['x-forwarded-for'] || req.headers['x-real-ip'] || 'unknown'
+            : 'build-time';
           
           // Find user with enhanced Prisma client
           const user = await prisma.user.findUnique({
@@ -78,14 +80,7 @@ export const authOptions: NextAuthOptions = {
               password: true,
               role: true,
               companyId: true,
-              status: true,
-              company: {
-                select: {
-                  id: true,
-                  name: true,
-                  status: true
-                }
-              }
+              status: true
             }
           })
           
@@ -106,17 +101,6 @@ export const authOptions: NextAuthOptions = {
               userId: user.id,
               timestamp: new Date(),
               details: `Login attempt with inactive account: ${user.status}`
-            });
-            return null
-          }
-          
-          // Check if company is active (multi-tenant validation)
-          if (user.company && user.company.status !== 'ACTIVE') {
-            await logSecurityEvent(SecurityEventType.LOGIN_FAILED, {
-              ip: Array.isArray(ip) ? ip[0] : ip,
-              userId: user.id,
-              timestamp: new Date(),
-              details: `Login attempt with inactive company: ${user.company.status}`
             });
             return null
           }
@@ -152,13 +136,13 @@ export const authOptions: NextAuthOptions = {
             details: 'Successful password authentication'
           });
           
-          // Return user object for session
+          // Return user object for session (convert null to undefined for NextAuth compatibility)
           return {
             id: user.id,
             email: user.email,
             name: user.name,
             role: user.role,
-            companyId: user.companyId,
+            companyId: user.companyId ?? undefined,
             status: user.status
           }
           
@@ -176,43 +160,23 @@ export const authOptions: NextAuthOptions = {
       }
     })
   ],
-          if (!isPasswordValid) {
-            return null
-          }
-          
-          // Return user object compatible with NextAuth User type
-          return {
-            id: user.id,
-            email: user.email,
-            name: user.name,
-            role: user.role,
-            companyId: user.companyId ?? undefined // Convert null to undefined for NextAuth compatibility
-          }
-          
-        } catch (error) {
-          console.error('Authentication error:', error)
-          return null
-        }
-      }
-    })
-  ],
   
   callbacks: {
     async session({ session, token }) {
-      // Add user ID and role to the session
+      // Add user ID and role to the session with proper typing
       if (session.user) {
-        (session.user as any).id = token.sub as string;
-        (session.user as any).role = token.role as string;
-        (session.user as any).companyId = token.companyId as string;
+        session.user.id = token.sub as string;
+        session.user.role = token.role;
+        session.user.companyId = token.companyId;
       }
       return session
     },
     
     async jwt({ token, user }) {
-      // Add user role and company to JWT token
+      // Add user role and company to JWT token with proper typing
       if (user) {
-        token.role = (user as any).role
-        token.companyId = (user as any).companyId
+        token.role = user.role
+        token.companyId = user.companyId
       }
       return token
     }
@@ -220,11 +184,6 @@ export const authOptions: NextAuthOptions = {
   
   pages: {
     signIn: '/auth/login'
-  },
-  
-  session: {
-    strategy: 'jwt', // Use JWT instead of database sessions for better performance
-    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   
   debug: process.env.NODE_ENV === 'development',

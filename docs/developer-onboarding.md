@@ -2,7 +2,7 @@
 
 ## 🎯 Welcome to CleanFoss Booking Platform
 
-This checklist ensures new developers can quickly set up their development environment and understand the database infrastructure.
+This checklist ensures new developers can quickly set up their development environment and understand the comprehensive system infrastructure including authentication, testing, and documentation.
 
 ## 📋 Pre-Setup Requirements
 
@@ -34,8 +34,11 @@ This checklist ensures new developers can quickly set up their development envir
 - [ ] Install project dependencies: `npm install`
 - [ ] Create `.env.local` file in project root
 - [ ] Add `DATABASE_URL="postgresql://cleanfoss_user:cleanfoss_password@localhost:5432/cleanfoss_db"`
+- [ ] Add `NEXTAUTH_SECRET="your-super-secret-key-minimum-32-characters"`
+- [ ] Add `NEXTAUTH_URL="http://localhost:3000"`
 - [ ] Initialize database schema: `npx prisma db push`
 - [ ] Verify schema sync: "Your database is now in sync with your Prisma schema"
+- [ ] Seed database: `npm run db:seed`
 
 ## 🚀 Development Environment
 
@@ -52,6 +55,37 @@ This checklist ensures new developers can quickly set up their development envir
 - [ ] Navigate to booking page in application
 - [ ] Test basic functionality (no need to complete bookings)
 - [ ] Check application logs for database queries (should see Prisma query logs)
+
+## 🔐 Authentication System Setup
+
+### Authentication Testing
+- [ ] Navigate to authentication demo: `http://localhost:3000/demo/navigation`
+- [ ] Test registration: Create new user account
+- [ ] Test login: Login with created credentials
+- [ ] Test navigation: Verify role-based navigation appears
+- [ ] Test logout: Logout and verify redirect to public pages
+- [ ] Test protected routes: Try accessing `/profile` without login
+
+### Authentication Features Review
+- [ ] Review authentication components in `src/components/auth/`
+- [ ] Understand role-based layouts in `src/components/AuthenticatedLayout.tsx`
+- [ ] Check navigation integration in `src/components/Navigation.tsx`
+- [ ] Review API security in `src/app/api/auth/register-secure/route.ts`
+
+## 🧪 Testing Infrastructure Setup
+
+### Test Environment Setup  
+- [ ] Verify Jest is installed: Check `jest.config.json` exists
+- [ ] Run authentication tests: `npm run test:auth`
+- [ ] Run all tests: `npm run test`
+- [ ] Generate coverage report: `npm run test:coverage`
+- [ ] Verify tests pass with 80%+ coverage
+
+### Test Understanding
+- [ ] Review component tests in `tests/auth-system.test.tsx`
+- [ ] Review API tests in `tests/auth-api.test.ts`
+- [ ] Understand testing patterns and mocking strategies
+- [ ] Know how to write new tests following existing patterns
 
 ## 🔧 Development Workflow Understanding
 

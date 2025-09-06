@@ -1,10 +1,16 @@
 generator client {
   provider = "prisma-client-js"
+  // Production optimizations
+  output   = "../node_modules/.prisma/client"
+  binaryTargets = ["native", "linux-openssl-3.0.x", "debian-openssl-3.0.x"]
+  engineType = "binary"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+  // Shadow database for development migrations
+  shadowDatabaseUrl = env("SHADOW_DATABASE_URL")
 }
 
 model Account {

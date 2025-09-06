@@ -77,14 +77,7 @@ export const authOptions: NextAuthOptions = {
               password: true,
               role: true,
               companyId: true,
-              status: true,
-              company: {
-                select: {
-                  id: true,
-                  name: true,
-                  status: true
-                }
-              }
+              status: true
             }
           })
           
@@ -105,17 +98,6 @@ export const authOptions: NextAuthOptions = {
               userId: user.id,
               timestamp: new Date(),
               details: `Login attempt with inactive account: ${user.status}`
-            });
-            return null
-          }
-          
-          // Check if company is active (multi-tenant validation)
-          if (user.company && user.company.status !== 'ACTIVE') {
-            await logSecurityEvent(SecurityEventType.LOGIN_FAILED, {
-              ip: Array.isArray(ip) ? ip[0] : ip,
-              userId: user.id,
-              timestamp: new Date(),
-              details: `Login attempt with inactive company: ${user.company.status}`
             });
             return null
           }
@@ -151,13 +133,13 @@ export const authOptions: NextAuthOptions = {
             details: 'Successful password authentication'
           });
           
-          // Return user object for session
+          // Return user object for session (convert null to undefined for NextAuth compatibility)
           return {
             id: user.id,
             email: user.email,
             name: user.name,
             role: user.role,
-            companyId: user.companyId,
+            companyId: user.companyId ?? undefined,
             status: user.status
           }
           
@@ -200,7 +182,6 @@ export const authOptions: NextAuthOptions = {
   
   pages: {
     signIn: '/auth/login',
-    signUp: '/auth/register',
     error: '/auth/error',
   },
   

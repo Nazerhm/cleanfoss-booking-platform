@@ -1,5 +1,9 @@
+/* Tailwind CSS directives */
+/* postcss-ignore-next-line */
 @tailwind base;
+/* postcss-ignore-next-line */
 @tailwind components;
+/* postcss-ignore-next-line */
 @tailwind utilities;
 
 /* Custom base styles */

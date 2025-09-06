@@ -27,23 +27,40 @@ export const SESSION_CONFIG = {
   domain: process.env.NODE_ENV === 'production' ? process.env.NEXTAUTH_URL : undefined,
 } as const;
 
-// Security Headers Configuration
+// Security Headers Configuration (Enhanced for Production)
 export const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'X-XSS-Protection': '1; mode=block',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Permissions-Policy': 'geolocation=(), microphone=(), camera=()',
-  'Strict-Transport-Security': 'max-age=31536000; includeSubDomains; preload',
-  'Content-Security-Policy': [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com",
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com",
-    "img-src 'self' data: https:",
-    "connect-src 'self' https://api.stripe.com https://*.stripe.com",
-    "frame-src https://js.stripe.com https://hooks.stripe.com",
-  ].join('; '),
+  'Strict-Transport-Security': process.env.NODE_ENV === 'production' 
+    ? `max-age=${process.env.HSTS_MAX_AGE || 31536000}; includeSubDomains; preload`
+    : 'max-age=31536000; includeSubDomains; preload',
+  'Content-Security-Policy': process.env.NODE_ENV === 'production'
+    ? [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com",
+        "img-src 'self' data: https:",
+        "connect-src 'self' https://api.stripe.com https://*.stripe.com",
+        "frame-src https://js.stripe.com https://hooks.stripe.com",
+        `report-uri ${process.env.CSP_REPORT_URI || '/api/security/csp-report'}`
+      ].join('; ')
+    : [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com",
+        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+        "font-src 'self' https://fonts.gstatic.com", 
+        "img-src 'self' data: https:",
+        "connect-src 'self' https://api.stripe.com https://*.stripe.com",
+        "frame-src https://js.stripe.com https://hooks.stripe.com"
+      ].join('; '),
+  'X-Permitted-Cross-Domain-Policies': 'none',
+  'Cross-Origin-Embedder-Policy': 'require-corp',
+  'Cross-Origin-Opener-Policy': 'same-origin',
+  'Cross-Origin-Resource-Policy': 'same-origin'
 } as const;
 
 // Rate Limiting Configuration
